@@ -14,94 +14,55 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Nastya Gurskaya");
 MODULE_VERSION("1");
 
-#define DELAY 3
-#define TEXT "Hello, world!"
 
-static unsigned long times_left = 0;
-static unsigned char timer_exists = 0;
+static struct timer_list my_timer;
+static struct kobject *mytimer_kobject;
+static int delay = 0;
 
-static int timer_init(void);
-static void timer_exit(void);
-static void repeat(unsigned long);
-
-static ssize_t timer_read(struct kobject *, struct kobj_attribute *, char *);
-static ssize_t timer_write(struct kobject *, struct kobj_attribute *, const char *, size_t);
-
-static void repeat(unsigned long);
-
-static struct kobj_attribute times_attrb =
-    __ATTR(interval, 0664, timer_write, timer_read);
-
-static struct kobject *times_obj = NULL;
-static struct timer_list timer;
-
-static ssize_t timer_read(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+static void print_hello(unsigned long data)
 {
-	return sprintf(buf, "%d\n", times_left);
+	printk(KERN_INFO "Hello, world!\n");
+	mod_timer(&my_timer, jiffies + delay * HZ);
 }
 
-static ssize_t timer_write(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t mytimer_read(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	if (kstrtoul(buf, 10, &times) == -EINVAL) {
-        return -EINVAL;
-    }
-
-    if (timer_exists) {
-        del_timer(&timer);
-    }
-
-    timer_exists = 1;
-    timer.data = times;
-    timer.function = repeat;
-    timer.expires = jiffies + DELAY * HZ;
-
-    add_timer(&timer);
-
-    return count;
-}
-static void repeat(unsigned long arg)
-{
-    unsigned long i = 0;
-
-    if (!arg) {
-        return;
-    }
-
-    for (i = 0; i < arg; ++i) {
-        printk(KERN_INFO "%s\n", TEXT);
-    }
-
-    timer.expires = jiffies + DELAY * HZ;
-
-    add_timer(&timer);
+	return sprintf(buf, "%d\n", delay);
 }
 
-static int timer_init(void)
+static ssize_t mytimer_write(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
-    init_timer_on_stack(&timer);
+	sscanf(buf, "%d", &delay);
+	return count;
+}
 
-    times_obj = kobject_create_and_add("timer", NULL);
-    if (!times_obj) {
-        return -ENOMEM;
-    }
+static struct kobj_attribute delay_attribute =__ATTR(delay, 0664, mytimer_read, mytimer_write);
 
-    if (sysfs_create_file(times_obj, &times_attrb.attr)) {
-        timer_exit();
-        return -EINVAL;
-    }
+static int mytimer_init(void)
+{
+	int error = 0;	
+	mytimer_kobject = kobject_create_and_add("mytimer", kernel_kobj);
+	if (!mytimer_kobject) {
+		return -ENOMEM;
+	}
+	error = sysfs_create_file(mytimer_kobject, &delay_attribute.attr);
+	if (error) {
+		printk(KERN_INFO "failed to create the delay file in /sys/kernel/mytimer \n");
+		return error;
+	}
+	init_timer_on_stack(&my_timer);
+	my_timer.expires = jiffies + delay * HZ;
+	my_timer.data = 0;
+	my_timer.function = print_hello;
+	add_timer(&my_timer);
 	return 0;
 }
 
-static void timer_exit(void)
+static void mytimer_exit(void)
 {	
-     if (timer_exists) {
-        del_timer(&timer);
-    }
-
-    if (times_obj) {
-        kobject_put(times_obj);
-    }
+	kobject_put(mytimer_kobject);
+	del_timer(&my_timer);
 }
 
-module_init(timer_init);
-module_exit(timer_exit);
+module_init(mytimer_init);
+module_exit(mytimer_exit);

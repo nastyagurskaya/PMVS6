@@ -1,12 +1,13 @@
-obj-m := timer.o
+ifneq ($(KERNELRELEASE),) 
+   	obj-m:=timer.o
+else 
+	KERNELDIR:=/lib/modules/$(shell uname -r)/build 
 
-KDIR :=/lib/modules/$(shell uname -r)/build
+PWD:=$(shell pwd)
 
-PWD := $(shell pwd)
-
-default:
-	$(MAKE) -C $(KDIR) M=$(PWD) modules
-
+default: 
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
+endif 
 clean:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) clean
+	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
 
