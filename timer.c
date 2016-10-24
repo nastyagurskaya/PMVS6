@@ -42,8 +42,22 @@ static ssize_t timer_read(struct kobject *kobj, struct kobj_attribute *attr, cha
 
 static ssize_t timer_write(struct kobject *kobj, struct kobj_attribute *attr, const char *buf, size_t count)
 {
-	sscanf(buf, "%du", &times_left);
-	return count;
+	if (kstrtoul(buf, 10, &times) == -EINVAL) {
+        return -EINVAL;
+    }
+
+    if (timer_exists) {
+        del_timer(&timer);
+    }
+
+    timer_exists = 1;
+    timer.data = times;
+    timer.function = repeat;
+    timer.expires = jiffies + DELAY * HZ;
+
+    add_timer(&timer);
+
+    return count;
 }
 static void repeat(unsigned long arg)
 {
