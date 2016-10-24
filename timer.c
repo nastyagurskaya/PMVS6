@@ -22,9 +22,12 @@ static unsigned char timer_exists = 0;
 
 static int timer_init(void);
 static void timer_exit(void);
+static void repeat(unsigned long);
 
-static ssize_t times_write(struct kobject *, struct kobj_attribute *, char *);
-static ssize_t times_read(struct kobject *, struct kobj_attribute *, const char *, size_t);
+static ssize_t timer_read(struct kobject *, struct kobj_attribute *, char *);
+static ssize_t timer_write(struct kobject *, struct kobj_attribute *, const char *, size_t);
+
+static void repeat(unsigned long);
 
 static struct kobj_attribute times_attrb =
     __ATTR(interval, 0664, timer_write, timer_read);
@@ -42,10 +45,26 @@ static ssize_t timer_write(struct kobject *kobj, struct kobj_attribute *attr, co
 	sscanf(buf, "%du", &times_left);
 	return count;
 }
+static void repeat(unsigned long arg)
+{
+    unsigned long i = 0;
+
+    if (!arg) {
+        return;
+    }
+
+    for (i = 0; i < arg; ++i) {
+        printk(KERN_INFO "%s\n", TEXT);
+    }
+
+    timer.expires = jiffies + DELAY * HZ;
+
+    add_timer(&timer);
+}
 
 static int timer_init(void)
 {
-	nit_timer_on_stack(&timer);
+    init_timer_on_stack(&timer);
 
     times_obj = kobject_create_and_add("timer", NULL);
     if (!times_obj) {
